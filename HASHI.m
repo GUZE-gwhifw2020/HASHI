@@ -181,6 +181,23 @@ classdef HASHI
             delete('temp.mat');
         end
         
+        function SavePuzzle(obj)
+            %SAVEPUZZLE 保存题面
+            if(~exist('HashiSavedPuzzles.mat', 'file'))
+                matSave = cell(1);
+                matSave{1} = obj.mat;
+                save HashiSavedPuzzles.mat matSave
+            else
+                load HashiSavedPuzzles.mat matSave
+                if(any(cellfun(@(x) isequal(x, obj.mat), matSave(max(1,end-4):end))))
+                    warning(' 检测到重复存储。');
+                else
+                    matSave{end+1} = obj.mat;
+                    save HashiSavedPuzzles.mat matSave
+                end
+            end
+            
+        end
     end
     
     methods (Access = private)
