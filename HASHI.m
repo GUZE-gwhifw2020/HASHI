@@ -51,6 +51,11 @@ classdef HASHI
             
             % 预处理
             obj = obj.surroundingSearch();
+            
+            % 求解核心变量初始化
+            obj.islCurBri = zeros(4, obj.islNum);
+            obj.islUpLBri = 2 * (obj.islSI ~= 0);         % 上限初始为2,仅有岛相连
+            obj.islIsFin = false(obj.islNum, 1);
         end
         
         function obj = surroundingSearch(obj)
@@ -96,8 +101,8 @@ classdef HASHI
                     % 桥两端岛号赋值
                     obj.briLRIsl(:, obj.briLRNum) = [iLeft;iRight];
                     % 岛四周桥号赋值
-                    obj.islSB(obj.dirRight, iLeft) = obj.briUDNum;
-                    obj.islSB(obj.dirLeft, iRight) = obj.briUDNum;
+                    obj.islSB(obj.dirRight, iLeft) = obj.briLRNum;
+                    obj.islSB(obj.dirLeft, iRight) = obj.briLRNum;
                 end
             end
             
@@ -123,16 +128,101 @@ classdef HASHI
             
         end
         
-        
-        function Genesis(obj)
+        function obj = Genesis(obj)
             %GENESIS 求解主循环
+            jj = 1;
+            while(~all(obj.islIsFin) && jj < 10)
+                % 岛遍历
+                for indIsl = 1:obj.islNum
+                    if(~obj.islIsFin(indIsl))
+                        % 岛处理: 更新四边上下界、是否完成
+                        obj = obj.islandExcu(indIsl);
+                    end
+                end
+                jj = jj + 1;
+            end
+        end
+        
+        function obj = islandExcu(obj, indIsl)
+            %ISLANDEXCU 岛处理
+            %   Input:
+            %       indIsl      岛下标
             
+            % 核心算法 —— 更新上下限
+            curNew = max(obj.islCurBri(:, indIsl), ...
+                -sum(obj.islUpLBri(:, indIsl)) + obj.islDigit(indIsl) + obj.islUpLBri(:, indIsl));
+            upLNew = min(obj.islUpLBri(:, indIsl), ...
+                -sum(obj.islCurBri(:, indIsl)) + obj.islDigit(indIsl) + obj.islCurBri(:, indIsl));
+            
+            % 是否完成
+            obj.islIsFin(indIsl) = isequal(curNew, upLNew);
+            
+            % 更新后四周岛桥修改
+            D = find(curNew > obj.islCurBri(:, indIsl));
+            if(~isempty(D))
+                % 变化下限
+                IND = sub2ind([4 obj.islNum], 5-D, obj.islSI(D, indIsl));
+                obj.islCurBri(IND) = curNew(D);
+            end
+            D = find(upLNew < obj.islUpLBri(:, indIsl));
+            if(~isempty(D))
+                % 变化上限
+                IND = sub2ind([4 obj.islNum], 5-D, obj.islSI(D, indIsl));
+                obj.islUpLBri(IND) = upLNew(D);
+            end
+            D = find(curNew & ~obj.islCurBri(:, indIsl));
+            for dirTemp = D'
+                indBri = obj.islSB(dirTemp, indIsl);
+                if(dirTemp == obj.dirLeft || dirTemp == obj.dirRight)
+                    % 水平桥将覆盖垂直桥
+                    indBriOv = find(obj.ovLapMat(indBri, :));
+                    if(~isempty(indBriOv))
+                        % 上下岛下标
+                        islIndUP = obj.briUDIsl(:, indBriOv);
+                        obj.islUpLBri(obj.dirDown, islIndUP(1, :)) = 0;
+                        obj.islUpLBri(obj.dirUp, islIndUP(2, :)) = 0;
+                    end
+                else
+                    % 垂直桥将覆盖水平桥
+                    indBriOv = find(obj.ovLapMat(:, indBri));
+                    if(~isempty(indBriOv))
+                        % 左右岛下标
+                        islIndLR = obj.briLRIsl(:, indBriOv);
+                        obj.islUpLBri(obj.dirRight, islIndLR(1, :)) = 0;
+                        obj.islUpLBri(obj.dirLeft, islIndLR(2, :)) = 0;
+                    end
+                end
+            end
+            
+            
+            % 更新上下限
+            obj.islCurBri(:, indIsl) = curNew;
+            obj.islUpLBri(:, indIsl) = upLNew;
         end
         
         function Display(obj)
             %DISPLAY 绘制结果
             %   此处显示详细说明
-            
+            figure(1);
+            [row,col] = find(obj.mat);
+            scatter(col, row, 'Marker', 'o');
+            for indIsl = 1:obj.islNum
+                if(obj.islCurBri(obj.dirDown, indIsl) == 1)
+                    line([col(indIsl) col(indIsl)], [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
+                elseif(obj.islCurBri(obj.dirDown, indIsl) == 2)
+                    line(col(indIsl)+[0.05 0.05], [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
+                    line(col(indIsl)-[0.05 0.05], [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
+                end
+                if(obj.islCurBri(obj.dirRight, indIsl) == 1)
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], [row(indIsl) row(indIsl)]);
+                elseif(obj.islCurBri(obj.dirRight, indIsl) == 2)
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)+[0.05 0.05]);
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)-[0.05 0.05]);
+                end
+            end
+            view(0, -90);
+            axis equal;
+            axis([0.5 obj.width+0.5 0.5 obj.height+0.5]);
         end
         
         function MouseSimulate(obj)
