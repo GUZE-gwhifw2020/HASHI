@@ -2,16 +2,14 @@ classdef HASHI
     %HASHI 逻辑游戏HASHI求解工程
     %   此处显示详细说明
     
-    properties(Constant)
+    properties(Constant = true, Access = private)
         dirUp       = 1;        % 方向常数:上
         dirDown     = 4;        % 方向常数:下
         dirLeft     = 3;        % 方向常数:左
         dirRight    = 2;        % 方向常数:右
-        
-        
     end
     
-    properties
+    properties(Access = private)
         % ============= %
         width           % 宽度，列个数
         height          % 高度，行个数
@@ -36,14 +34,20 @@ classdef HASHI
         
     end
     
-    methods
-        function obj = HASHI(tokStrArg)
+    methods (Access = public)
+        function obj = HASHI(inputArg)
             %HASHI 构造此类的实例
             %   Input:
-            %       tokStrArg   token字符串
+            %       inputArg    token字符串或矩阵
             
-            % 解析字符串
-            [obj.mat, obj.height, obj.width] = hTokenResolve(tokStrArg);
+            if(ischar(inputArg))
+                % 解析字符串
+                [obj.mat, obj.height, obj.width] = hTokenResolve(inputArg);
+            elseif(ismatrix(inputArg))
+                % 矩阵赋值
+                obj.mat = sparse(inputArg);
+                [obj.height, obj.width] = size(inputArg);
+            end
             
             % 岛个数与数字
             obj.islNum = nnz(obj.mat);
@@ -58,6 +62,128 @@ classdef HASHI
             obj.islIsFin = false(obj.islNum, 1);
         end
         
+        function obj = Genesis(obj)
+            %GENESIS 求解主循环
+            jj = 1;
+            while(~all(obj.islIsFin) && jj < 10)
+                % 岛遍历
+                for indIsl = 1:obj.islNum
+                    if(~obj.islIsFin(indIsl))
+                        % 岛处理: 更新四边上下界、是否完成
+                        obj = obj.islandExcu(indIsl);
+                    end
+                end
+                jj = jj + 1;
+            end
+        end
+        
+        function Display(obj)
+            %DISPLAY 绘制结果
+            figure(1); clf; hold on;
+            % 网格线
+            for ii = 1:obj.width
+                line([ii,ii],[0.5,obj.height+0.5],'Color',[0.9,0.9,0.9]);
+            end
+            for ii = 1:obj.height
+                line([0.5,obj.width+0.5],[ii,ii],'Color',[0.9,0.9,0.9]);
+            end
+            
+            % 岛间桥
+            [row,col] = find(obj.mat);
+            for indIsl = 1:obj.islNum
+                if(obj.islCurBri(obj.dirDown, indIsl) > 0)
+                    line(col(indIsl)+[0.1 0.1]*(obj.islCurBri(obj.dirDown, indIsl)-1), [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
+                    line(col(indIsl)-[0.1 0.1]*(obj.islCurBri(obj.dirDown, indIsl)-1), [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
+                end
+                if(obj.islCurBri(obj.dirRight, indIsl) > 0)
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)+[0.1 0.1]*(obj.islCurBri(obj.dirRight, indIsl)-1));
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)-[0.1 0.1]*(obj.islCurBri(obj.dirRight, indIsl)-1));
+                end
+            end
+            
+            % 岛圆圈
+            scatter(col, row, 144, 'Marker', 'o', 'MarkerFaceColor', 'w');
+            
+            % 岛数字
+            for indIsl = 1:obj.islNum
+                text(col(indIsl), row(indIsl), ...
+                    num2str(obj.islDigit(indIsl)), ...
+                    'HorizontalAlignment','center', ...
+                    'VerticalAlignment','middle');
+            end
+            
+            % 调整视角
+            view(0, -90);
+            
+            % 网格为正方形
+            axis equal;
+            axis([0 obj.width+1 0 obj.height+1]);
+            
+            % 关闭周围轴线
+            box off
+            
+            % 隐藏坐标轴
+            set(gca,'xtick',[])
+            set(gca,'ytick',[])
+            
+        end
+        
+        function MouseSimulate(obj)
+            %MOUSESIMULATE 模拟鼠标操作
+            
+            % 运行py文件，获取四顶点坐标
+            system('Apex4.py');
+            
+            % 读取四顶点坐标
+            load temp.mat apex
+            
+            % 导出点击坐标
+            % 屏幕像素显示比例
+            screenPixelRatio = 2.5;
+            
+            % 左右像素边界
+            apex = sort(apex);
+            xBound = round(mean(reshape(apex(:,1), [2 2])));
+            yBound = round(mean(reshape(apex(:,2), [2 2])));
+            % 单位间隔
+            xIntv = diff(xBound) / (obj.width - 1);
+            yIntv = diff(yBound) / (obj.height - 1);
+            
+            if(round(xIntv) ~= round(yIntv))
+                warning('顶点定位出现问题。可能引发不确定错误。')
+            end
+            
+            % 中心坐标
+            % 三个参数，x位置，y位置，点击类型
+            clickPos = zeros(obj.islNum * 2, 3);
+            % 偏置
+            xyBias = [xBound(1) yBound(1)] - [xIntv yIntv];
+            
+            % 坐标信息
+            [row, col] = find(obj.mat);
+            clickPos(1:end/2,[1 2]) = [col+0.75 row] .* [xIntv yIntv];
+            clickPos(end/2+1:end,[1 2]) = [col row+0.75] .* [xIntv yIntv];
+            
+            % 添加总偏置与250%缩放(因电脑而异)
+            clickPos(:,1:2) = round((clickPos(:,1:2) + xyBias) / screenPixelRatio);
+            
+            % 点击属性设置
+            clickPos(1:end/2,3) = obj.islCurBri(obj.dirRight, :);
+            clickPos(end/2+1:end,3) = obj.islCurBri(obj.dirDown, :);
+            
+            % 写入
+            save('temp.mat','clickPos','-append');
+            
+            % 执行PY文件模拟点击
+            system('Click.py');
+            
+            % 删除MAT文件
+            delete('temp.mat');
+        end
+        
+    end
+    
+    methods (Access = private)
         function obj = surroundingSearch(obj)
             %SURROUNDINGSEARCH 四周初始化
             % Task1. 初始化islSI
@@ -128,21 +254,6 @@ classdef HASHI
             
         end
         
-        function obj = Genesis(obj)
-            %GENESIS 求解主循环
-            jj = 1;
-            while(~all(obj.islIsFin) && jj < 10)
-                % 岛遍历
-                for indIsl = 1:obj.islNum
-                    if(~obj.islIsFin(indIsl))
-                        % 岛处理: 更新四边上下界、是否完成
-                        obj = obj.islandExcu(indIsl);
-                    end
-                end
-                jj = jj + 1;
-            end
-        end
-        
         function obj = islandExcu(obj, indIsl)
             %ISLANDEXCU 岛处理
             %   Input:
@@ -193,43 +304,13 @@ classdef HASHI
                     end
                 end
             end
-            
-            
+                        
             % 更新上下限
             obj.islCurBri(:, indIsl) = curNew;
             obj.islUpLBri(:, indIsl) = upLNew;
         end
         
-        function Display(obj)
-            %DISPLAY 绘制结果
-            %   此处显示详细说明
-            figure(1);
-            [row,col] = find(obj.mat);
-            scatter(col, row, 'Marker', 'o');
-            for indIsl = 1:obj.islNum
-                if(obj.islCurBri(obj.dirDown, indIsl) == 1)
-                    line([col(indIsl) col(indIsl)], [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
-                elseif(obj.islCurBri(obj.dirDown, indIsl) == 2)
-                    line(col(indIsl)+[0.05 0.05], [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
-                    line(col(indIsl)-[0.05 0.05], [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
-                end
-                if(obj.islCurBri(obj.dirRight, indIsl) == 1)
-                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], [row(indIsl) row(indIsl)]);
-                elseif(obj.islCurBri(obj.dirRight, indIsl) == 2)
-                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)+[0.05 0.05]);
-                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)-[0.05 0.05]);
-                end
-            end
-            view(0, -90);
-            axis equal;
-            axis([0.5 obj.width+0.5 0.5 obj.height+0.5]);
-        end
-        
-        function MouseSimulate(obj)
-            %MOUSESIMULATE 模拟鼠标操作
-        end
-
-
     end
+
 end
 
