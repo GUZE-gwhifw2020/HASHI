@@ -9,7 +9,7 @@ classdef HASHI
         dirRight    = 2;        % 方向常数:右
     end
     
-    properties(Access = private)
+    properties(Access = public)
         % ============= %
         width           % 宽度，列个数
         height          % 高度，行个数
@@ -32,6 +32,10 @@ classdef HASHI
         islUpLBri       % 岛当前上限桥数(4×islNum)
         islIsFin        % 岛是否完成(1×islNum)
         
+        % ============= %
+        archipCell      % 群岛元组{islNum×1}
+        islArchInd      % 岛对应群岛号(islNum×1)
+        arUnFinIsl      % 群岛中未确定岛下标(2×islNum)
     end
     
     methods (Access = public)
@@ -53,17 +57,28 @@ classdef HASHI
             obj.islNum = nnz(obj.mat);
             obj.islDigit = nonzeros(obj.mat);
             
-            % 预处理
+            % 岛桥关系预处理
             obj = obj.surroundingSearch();
             
             % 求解核心变量初始化
             obj.islCurBri = zeros(4, obj.islNum);
             obj.islUpLBri = 2 * (obj.islSI ~= 0);         % 上限初始为2,仅有岛相连
             obj.islIsFin = false(obj.islNum, 1);
+            
+            
+            % 群岛初始化
+            obj.islArchInd = reshape(1:obj.islNum, [], 1);
+            obj.archipCell = mat2cell(obj.islArchInd, ones(obj.islNum, 1));
+            obj.arUnFinIsl = [1:obj.islNum;zeros(1, obj.islNum)];
+            
         end
         
         function obj = Genesis(obj)
             %GENESIS 求解主循环
+            for ii = 1:obj.islNum
+                obj = obj.archipCheck(ii);
+            end
+            
             jj = 1;
             while(~all(obj.islIsFin) && jj < 10)
                 % 岛遍历
@@ -80,6 +95,10 @@ classdef HASHI
         function Display(obj)
             %DISPLAY 绘制结果
             figure(1); clf; hold on;
+            
+            % 调整视角
+            view(0, -90);
+            
             % 网格线
             for ii = 1:obj.width
                 line([ii,ii],[0.5,obj.height+0.5],'Color',[0.9,0.9,0.9]);
@@ -105,6 +124,7 @@ classdef HASHI
             scatter(col, row, 144, 'Marker', 'o', 'MarkerFaceColor', 'w');
             
             % 岛数字
+            
             for indIsl = 1:obj.islNum
                 text(col(indIsl), row(indIsl), ...
                     num2str(obj.islDigit(indIsl)), ...
@@ -112,8 +132,6 @@ classdef HASHI
                     'VerticalAlignment','middle');
             end
             
-            % 调整视角
-            view(0, -90);
             
             % 网格为正方形
             axis equal;
@@ -127,6 +145,48 @@ classdef HASHI
             set(gca,'ytick',[])
             
         end
+        
+        function Display2(obj)
+            %DISPLAY 绘制结果
+            figure(2); clf; hold on;
+            
+            % 调整视角
+            view(0, -90);
+            
+            % 网格线
+            for ii = 1:obj.width
+                line([ii,ii],[0.5,obj.height+0.5],'Color',[0.9,0.9,0.9]);
+            end
+            for ii = 1:obj.height
+                line([0.5,obj.width+0.5],[ii,ii],'Color',[0.9,0.9,0.9]);
+            end
+            
+            % 岛圆圈
+            [row,col] = find(obj.mat);
+            scatter(col, row, 144, 'Marker', 'o', 'MarkerFaceColor', 'w');
+            
+            % 岛数字
+            for indIsl = 1:obj.islNum
+                text(col(indIsl), row(indIsl), ...
+                    num2str(indIsl), ...
+                    'HorizontalAlignment','center', ...
+                    'VerticalAlignment','middle');
+            end
+            
+            
+            % 网格为正方形
+            axis equal;
+            axis([0 obj.width+1 0 obj.height+1]);
+            
+            % 关闭周围轴线
+            box off
+            
+            % 隐藏坐标轴
+            set(gca,'xtick',[])
+            set(gca,'ytick',[])
+            
+        end
+        
         
         function MouseSimulate(obj)
             %MOUSESIMULATE 模拟鼠标操作
@@ -200,7 +260,7 @@ classdef HASHI
         end
     end
     
-    methods (Access = private)
+    methods (Access = public)
         function obj = surroundingSearch(obj)
             %SURROUNDINGSEARCH 四周初始化
             % Task1. 初始化islSI
@@ -276,6 +336,10 @@ classdef HASHI
             %   Input:
             %       indIsl      岛下标
             
+            % 旧上下限
+            curOld = obj.islCurBri(:, indIsl);
+            upLOld = obj.islUpLBri(:, indIsl);
+            
             % 核心算法 —— 更新上下限
             curNew = max(obj.islCurBri(:, indIsl), ...
                 -sum(obj.islUpLBri(:, indIsl)) + obj.islDigit(indIsl) + obj.islUpLBri(:, indIsl));
@@ -285,49 +349,143 @@ classdef HASHI
             % 是否完成
             obj.islIsFin(indIsl) = isequal(curNew, upLNew);
             
+            % 更新上下限
+            obj.islCurBri(:, indIsl) = curNew;
+            obj.islUpLBri(:, indIsl) = upLNew;
+            
             % 更新后四周岛桥修改
-            D = find(curNew > obj.islCurBri(:, indIsl));
-            if(~isempty(D))
+            D1 = find(curNew > curOld);
+            if(~isempty(D1))
                 % 变化下限
-                IND = sub2ind([4 obj.islNum], 5-D, obj.islSI(D, indIsl));
-                obj.islCurBri(IND) = curNew(D);
+                IND = sub2ind([4 obj.islNum], 5-D1, obj.islSI(D1, indIsl));
+                obj.islCurBri(IND) = curNew(D1);
             end
-            D = find(upLNew < obj.islUpLBri(:, indIsl));
-            if(~isempty(D))
+            
+            D2 = find(upLNew < upLOld);
+            if(~isempty(D2))
                 % 变化上限
-                IND = sub2ind([4 obj.islNum], 5-D, obj.islSI(D, indIsl));
-                obj.islUpLBri(IND) = upLNew(D);
+                IND = sub2ind([4 obj.islNum], 5-D2, obj.islSI(D2, indIsl));
+                obj.islUpLBri(IND) = upLNew(D2);
             end
-            D = find(curNew & ~obj.islCurBri(:, indIsl));
-            for dirTemp = D'
+            D3 = find(curNew & ~curOld);
+            for dirTemp = D3'
                 indBri = obj.islSB(dirTemp, indIsl);
                 if(dirTemp == obj.dirLeft || dirTemp == obj.dirRight)
                     % 水平桥将覆盖垂直桥
                     indBriOv = find(obj.ovLapMat(indBri, :));
                     if(~isempty(indBriOv))
                         % 上下岛下标
-                        islIndUP = obj.briUDIsl(:, indBriOv);
-                        obj.islUpLBri(obj.dirDown, islIndUP(1, :)) = 0;
-                        obj.islUpLBri(obj.dirUp, islIndUP(2, :)) = 0;
+                        obj.islUpLBri(obj.dirDown, obj.briUDIsl(1, indBriOv)) = 0;
+                        obj.islUpLBri(obj.dirUp, obj.briUDIsl(2, indBriOv)) = 0;
                     end
+                    % 新水平桥建立
+                    obj = obj.archipForm(obj.briLRIsl(:, indBri));
                 else
                     % 垂直桥将覆盖水平桥
                     indBriOv = find(obj.ovLapMat(:, indBri));
                     if(~isempty(indBriOv))
                         % 左右岛下标
-                        islIndLR = obj.briLRIsl(:, indBriOv);
-                        obj.islUpLBri(obj.dirRight, islIndLR(1, :)) = 0;
-                        obj.islUpLBri(obj.dirLeft, islIndLR(2, :)) = 0;
+                        obj.islUpLBri(obj.dirRight, obj.briLRIsl(1, indBriOv)) = 0;
+                        obj.islUpLBri(obj.dirLeft, obj.briLRIsl(2, indBriOv)) = 0;
+                    end
+                    % 新垂直桥建立
+                    obj = obj.archipForm(obj.briUDIsl(:, indBri));
+                end
+            end
+            % 岛所属群岛为确定位置更新
+            % archInd = obj.islArchInd(indIsl);
+            obj = obj.archipUnIslRefresh(unique(obj.islArchInd([indIsl;obj.islSI(D1, indIsl)])));
+            
+            if(1 || ~isempty(D1))
+                % 群岛检查
+                obj = obj.archipCheck(obj.islArchInd(indIsl));
+            end
+        end
+        
+        function obj = archipForm(obj, islInds)
+            %ARCHIPFORM 连接两组群岛
+            %    Input:
+            %       islInds     连接位置两岛下标
+            
+            archInds = sort(obj.islArchInd(islInds));
+            if(archInds(1) ~= archInds(2))
+                % 两个不同群岛相连
+                % 第二群岛中岛移至第一群岛
+                obj.archipCell{archInds(1)} = ...
+                    [obj.archipCell{archInds(1)};obj.archipCell{archInds(2)}];
+                % 第二群岛中岛群岛号改变
+                obj.islArchInd(obj.archipCell{archInds(2)}) = archInds(1);
+                % 第二群岛删除
+                obj.archipCell{archInds(2)} = [];
+            end
+
+        end
+        
+        function obj = archipCheck(obj, archInd, islInd)
+            %ARCHIPCHEACK 群岛与周围群岛检查,对于生成闭环的予以删除
+            %   Input:
+            %       archInd     群岛下标
+            
+            if(nargin < 3)
+                % 群岛中桥未接满岛下标
+                islInd = obj.archipCell{archInd}(~obj.islIsFin(obj.archipCell{archInd}));
+            end
+            
+            % 岛个数判断
+            if(length(islInd) == 2)
+                % 两个岛是否相连
+                dirTemp = find(ismember(obj.islSI(1:2, islInd(1)), islInd(2)) & ...
+                    (obj.islUpLBri(1:2, islInd(1)) - obj.islCurBri(1:2, islInd(1))) > 0);
+                if(~isempty(dirTemp))
+                    
+                    K1 = obj.islDigit(islInd(1)) - sum(obj.islCurBri(:, islInd(1)));
+                    K2 = obj.islDigit(islInd(2)) - sum(obj.islCurBri(:, islInd(2)));
+                    if(K1 == 1 && K2 == 1 && ...
+                            nnz(~cellfun(@isempty, obj.archipCell)) > 2)
+                        
+                        obj.islUpLBri(dirTemp, islInd(1)) = 1;
+                        obj.islUpLBri(5-dirTemp, islInd(2)) = 1;
+                        
+                    end
+                end
+                
+            elseif(length(islInd) == 1)
+                % 岛剩余可连桥数
+                K = obj.islDigit(islInd) - sum(obj.islCurBri(:, islInd));
+                if(K <= 2)
+                    % 可连桥方向
+                    bri = obj.islUpLBri(1:2, islInd) - obj.islCurBri(1:2, islInd);
+                    D = find(bri > 0);
+                    for ii = 1:length(D)
+                        dirTemp = D(ii);
+                        % 可连桥另一端岛下标
+                        islSurdInd = obj.islSI(dirTemp, islInd);
+                        if(isequal(obj.arUnFinIsl(:, obj.islArchInd(islSurdInd)), [islSurdInd;0]) && ...
+                                K == (obj.islDigit(islSurdInd) - sum(obj.islCurBri(:, islSurdInd))) && ...
+                                nnz(~cellfun(@isempty, obj.archipCell)) > 2)
+                            obj.islUpLBri(dirTemp, islInd) = K - 1;
+                            obj.islUpLBri(5-dirTemp, islSurdInd) = K - 1;
+                        end
                     end
                 end
             end
-                        
-            % 更新上下限
-            obj.islCurBri(:, indIsl) = curNew;
-            obj.islUpLBri(:, indIsl) = upLNew;
+        end
+        
+        function obj = archipUnIslRefresh(obj, archInds)
+            %ARCHIPUNISLREFRESH 更新群岛未确定岛下标
+            for iter = 1:length(archInds)
+                archInd = archInds(iter);
+                islInd = obj.archipCell{archInd}(~obj.islIsFin(obj.archipCell{archInd}));
+                switch(length(islInd))
+                    case 1
+                        obj.arUnFinIsl(:, archInd) = [islInd;0];
+                    case 2
+                        obj.arUnFinIsl(:, archInd) = islInd;
+                    otherwise
+                        obj.arUnFinIsl(:, archInd) = [0;0];
+                end
+            end
         end
         
     end
-
 end
-
