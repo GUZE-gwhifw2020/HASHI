@@ -80,7 +80,7 @@ classdef HASHI
             end
             
             jj = 1;
-            while(~all(obj.islIsFin) && jj < 10)
+            while(~all(obj.islIsFin) && jj < 22)
                 % 岛遍历
                 for indIsl = 1:obj.islNum
                     if(~obj.islIsFin(indIsl))
@@ -92,9 +92,14 @@ classdef HASHI
             end
         end
         
-        function Display(obj)
+        function Display(obj, figNum)
             %DISPLAY 绘制结果
-            figure(1); clf; hold on;
+            
+            if(nargin < 2)
+                figNum = 1;
+            end
+            
+            figure(figNum); clf; hold on;
             
             % 调整视角
             view(0, -90);
@@ -111,12 +116,12 @@ classdef HASHI
             [row,col] = find(obj.mat);
             for indIsl = 1:obj.islNum
                 if(obj.islCurBri(obj.dirDown, indIsl) > 0)
-                    line(col(indIsl)+[0.1 0.1]*(obj.islCurBri(obj.dirDown, indIsl)-1), [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
-                    line(col(indIsl)-[0.1 0.1]*(obj.islCurBri(obj.dirDown, indIsl)-1), [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))]);
+                    line(col(indIsl)+[0.07 0.07]*(obj.islCurBri(obj.dirDown, indIsl)-1), [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))] + [0.4 -0.4]);
+                    line(col(indIsl)-[0.07 0.07]*(obj.islCurBri(obj.dirDown, indIsl)-1), [row(indIsl) row(obj.islSI(obj.dirDown, indIsl))] + [0.4 -0.4]);
                 end
                 if(obj.islCurBri(obj.dirRight, indIsl) > 0)
-                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)+[0.1 0.1]*(obj.islCurBri(obj.dirRight, indIsl)-1));
-                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))], row(indIsl)-[0.1 0.1]*(obj.islCurBri(obj.dirRight, indIsl)-1));
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))] + [0.4 -0.4], row(indIsl)+[0.07 0.07]*(obj.islCurBri(obj.dirRight, indIsl)-1));
+                    line([col(indIsl) col(obj.islSI(obj.dirRight, indIsl))] + [0.4 -0.4], row(indIsl)-[0.07 0.07]*(obj.islCurBri(obj.dirRight, indIsl)-1));
                 end
             end
             
@@ -124,12 +129,13 @@ classdef HASHI
             scatter(col, row, 144, 'Marker', 'o', 'MarkerFaceColor', 'w');
             
             % 岛数字
-            
+            charColor = {'#A2142F';'#000000'};
             for indIsl = 1:obj.islNum
                 text(col(indIsl), row(indIsl), ...
                     num2str(obj.islDigit(indIsl)), ...
                     'HorizontalAlignment','center', ...
-                    'VerticalAlignment','middle');
+                    'VerticalAlignment','middle', ...
+                    'Color', charColor{obj.islIsFin(indIsl)+1});
             end
             
             
@@ -138,16 +144,16 @@ classdef HASHI
             axis([0 obj.width+1 0 obj.height+1]);
             
             % 关闭周围轴线
-            box off
+            box off;
             
             % 隐藏坐标轴
-            set(gca,'xtick',[])
-            set(gca,'ytick',[])
+            set(gca,'xtick',[]);
+            set(gca,'ytick',[]);
             
         end
         
         function Display2(obj)
-            %DISPLAY 绘制结果
+            %DISPLAY2 绘制岛下标
             figure(2); clf; hold on;
             
             % 调整视角
@@ -179,11 +185,11 @@ classdef HASHI
             axis([0 obj.width+1 0 obj.height+1]);
             
             % 关闭周围轴线
-            box off
+            box off;
             
             % 隐藏坐标轴
-            set(gca,'xtick',[])
-            set(gca,'ytick',[])
+            set(gca,'xtick',[]);
+            set(gca,'ytick',[]);
             
         end
         
@@ -210,7 +216,7 @@ classdef HASHI
             yIntv = diff(yBound) / (obj.height - 1);
             
             if(round(xIntv) ~= round(yIntv))
-                warning('顶点定位出现问题。可能引发不确定错误。')
+                warning('顶点定位出现问题。可能引发不确定错误。');
             end
             
             % 中心坐标
@@ -250,7 +256,7 @@ classdef HASHI
             else
                 load HashiSavedPuzzles.mat matSave
                 if(any(cellfun(@(x) isequal(x, obj.mat), matSave(max(1,end-4):end))))
-                    warning(' 检测到重复存储。');
+                    warning('检测到重复存储。');
                 else
                     matSave{end+1} = obj.mat;
                     save HashiSavedPuzzles.mat matSave
@@ -421,27 +427,26 @@ classdef HASHI
 
         end
         
-        function obj = archipCheck(obj, archInd, islInd)
+        function obj = archipCheck(obj, archInd)
             %ARCHIPCHEACK 群岛与周围群岛检查,对于生成闭环的予以删除
             %   Input:
             %       archInd     群岛下标
             
-            if(nargin < 3)
-                % 群岛中桥未接满岛下标
-                islInd = obj.archipCell{archInd}(~obj.islIsFin(obj.archipCell{archInd}));
-            end
+            % 群岛中桥未接满岛下标
+            islInd = obj.archipCell{archInd}(~obj.islIsFin(obj.archipCell{archInd}));
             
             % 岛个数判断
             if(length(islInd) == 2)
                 % 两个岛是否相连
-                dirTemp = find(ismember(obj.islSI(1:2, islInd(1)), islInd(2)) & ...
-                    (obj.islUpLBri(1:2, islInd(1)) - obj.islCurBri(1:2, islInd(1))) > 0);
+                dirTemp = find(ismember(obj.islSI(:, islInd(1)), islInd(2)) & ...
+                    (obj.islUpLBri(:, islInd(1)) - obj.islCurBri(:, islInd(1))) > 0);
                 if(~isempty(dirTemp))
                     
                     K1 = obj.islDigit(islInd(1)) - sum(obj.islCurBri(:, islInd(1)));
                     K2 = obj.islDigit(islInd(2)) - sum(obj.islCurBri(:, islInd(2)));
                     if(K1 == 1 && K2 == 1 && ...
-                            nnz(~cellfun(@isempty, obj.archipCell)) > 2)
+                            (nnz(~cellfun(@isempty, obj.archipCell)) > 2 || ...
+                            (nnz(~cellfun(@isempty, obj.archipCell)) == 2 && archInd == 1)))
                         
                         obj.islUpLBri(dirTemp, islInd(1)) = 1;
                         obj.islUpLBri(5-dirTemp, islInd(2)) = 1;
