@@ -1,4 +1,6 @@
-%% Birth Certificate
+
+function [ImgSet, ImgMat] = picSlice(Img, PIC_SIZE)
+%% PICSLICE HASHI图片切割
 % ===================================== %
 % DATE OF BIRTH:    2021.03.29
 % NAME OF FILE:     picSlice
@@ -6,10 +8,17 @@
 % FUNC:
 %   HASHI图片切割。
 % ===================================== %
-
-%% 图片
-Img = imread('1.png');
-close all;
+% Input:
+%   Img         三通道图片
+%   PIC_SIZE    导出图片集大小，默认21
+% Output:
+%   ImgSet      图片集矩阵，PIC_SIZE * PIC_SIZE * ValidNum
+%   ImgMat      有效位置矩阵，大小height * width
+% ===================================== %
+%% 数据预处理
+if(nargin < 2)
+    PIC_SIZE = 21;
+end
 
 %% HSV - 色调(H),饱和度(S),明度(V)
 [H, ~, ~] = rgb2hsv(Img);
@@ -24,7 +33,7 @@ rowSum = mean((H > 0.2), 2); [indR, intvR] = peaksDetect(rowSum);
 height = length(indR);
 width = length(indC);
 
-ImgSet = zeros(21, 21, height * width);
+ImgSet = zeros(PIC_SIZE, PIC_SIZE, height * width);
 
 YSpan = arrayfun(@(x) round(indR(x)-intvR/2/2):round(indR(x)+intvR/2/2), 1:height, 'UniformOutput', 0);
 XSpan = arrayfun(@(x) round(indC(x)-intvC/2/2):round(indC(x)+intvC/2/2), 1:width, 'UniformOutput', 0);
@@ -39,16 +48,17 @@ ImgSet(:,:,~ImgMat) = [];
 
 
 %%
-figure(1);
-subplot(1,2,1); imshow(Img);
-for ii = 1:length(indC), xline(indC(ii)); end
-for ii = 1:length(indR), yline(indR(ii)); end
-subplot(1,2,2); imagesc(H); colormap gray; colormap;
+% figure(1);
+% subplot(1,2,1); imshow(Img);
+% for ii = 1:length(indC), xline(indC(ii)); end
+% for ii = 1:length(indR), yline(indR(ii)); end
+% subplot(1,2,2); imagesc(H); colormap gray; colormap;
 %%
-figure(2); hold on;
-plot(colSum); scatter(indC, colSum(round(indC)), 'Marker', 'diamond');
-plot(rowSum); scatter(indR, rowSum(round(indR)), 'Marker', 'diamond');
+% figure(2); hold on;
+% plot(colSum); scatter(indC, colSum(round(indC)), 'Marker', 'diamond');
+% plot(rowSum); scatter(indR, rowSum(round(indR)), 'Marker', 'diamond');
 
+end
 %%
 function [ind, intv] = peaksDetect(lineSum)
 [~, st] = findpeaks(diff(lineSum),'MinPeakHeight',0.25);

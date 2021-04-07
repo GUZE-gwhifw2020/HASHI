@@ -227,8 +227,8 @@ classdef HASHI
             
             % 坐标信息
             [row, col] = find(obj.mat);
-            clickPos(1:end/2,[1 2]) = [col+0.75 row] .* [xIntv yIntv];
-            clickPos(end/2+1:end,[1 2]) = [col row+0.75] .* [xIntv yIntv];
+            clickPos(1:end/2,[1 2]) = [col+0.6 row] .* [xIntv yIntv];
+            clickPos(end/2+1:end,[1 2]) = [col row+0.6] .* [xIntv yIntv];
             
             % 添加总偏置与250%缩放(因电脑而异)
             clickPos(:,1:2) = round((clickPos(:,1:2) + xyBias) / screenPixelRatio);
@@ -262,7 +262,36 @@ classdef HASHI
                     save HashiSavedPuzzles.mat matSave
                 end
             end
+        end
+        
+        function AddCNNTrainData(obj, IMG_FILE_NAME)
+            if(nargin < 2)
+                IMG_FILE_NAME = '0.png';
+            end
             
+            addpath('./TokenExtract');
+            % 图片处理
+            [ImgSet, ImgMat] = picSlice(imread(IMG_FILE_NAME));
+            % 有效图片位置判断
+            if(isequal(obj.mat ~= 0, ImgMat))
+                if(~exist('HASHIDataSet.mat', 'file'))
+                    images = ImgSet;
+                    label = nonzeros(obj.mat);
+                    save HASHIDataSet.mat images label
+                else
+                    load HASHIDataSet.mat images label
+                    images = cat(3, images, ImgSet);
+                    label = [label; nonzeros(obj.mat)];
+                    save HASHIDataSet.mat images label
+                end
+                %
+                fprintf('\t加入样本数: %d\n\t总样本数: %d\n', ...
+                    size(ImgSet, 3), length(label));
+                
+            else
+                warning('图片有效位置矩阵与Token解析结果不一致。图片样本加入失败。');
+            end
+            rmpath('./TokenExtract');
         end
     end
     
