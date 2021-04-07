@@ -12,7 +12,11 @@
 strToken = input('    输入Token:','s');
 
 %%
-X = HASHI(strToken);
+if(~isempty(strToken))
+    X = HASHI(strToken);
+else
+    X = HASHI();
+end
 
 %%
 X = X.Genesis();

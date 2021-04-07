@@ -43,7 +43,7 @@ XSpan = arrayfun(@(x) round(indC(x)-intvC/2/2):round(indC(x)+intvC/2/2), 1:width
 for iter = 1:height * width
     ImgSet(:, :, iter) = 256 - imresize(rgb2gray(Img(YSpan{Y(iter)}, XSpan{X(iter)}, :)), [21 21]);
 end
-ImgMat = reshape(mean(ImgSet,[1 2]), [height width]) > 32;
+ImgMat = double(reshape(mean(ImgSet,[1 2]), [height width]) > 32);
 ImgSet(:,:,~ImgMat) = [];
 
 

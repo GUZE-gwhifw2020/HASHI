@@ -42,15 +42,20 @@ classdef HASHI
         function obj = HASHI(inputArg)
             %HASHI 构造此类的实例
             %   Input:
-            %       inputArg    token字符串或矩阵
+            %       inputArg    token字符串或矩阵或空
             
-            if(ischar(inputArg))
-                % 解析字符串
-                [obj.mat, obj.height, obj.width] = hTokenResolve(inputArg);
-            elseif(ismatrix(inputArg))
-                % 矩阵赋值
-                obj.mat = sparse(inputArg);
-                [obj.height, obj.width] = size(inputArg);
+            if(nargin == 0)
+                obj.mat = sparse(hPicResolve());
+                [obj.height, obj.width] = size(obj.mat);
+            else
+                if(ischar(inputArg))
+                    % 解析字符串
+                    [obj.mat, obj.height, obj.width] = hTokenResolve(inputArg);
+                elseif(ismatrix(inputArg))
+                    % 矩阵赋值
+                    obj.mat = sparse(inputArg);
+                    [obj.height, obj.width] = size(inputArg);
+                end
             end
             
             % 岛个数与数字
@@ -255,7 +260,7 @@ classdef HASHI
                 save HashiSavedPuzzles.mat matSave
             else
                 load HashiSavedPuzzles.mat matSave
-                if(any(cellfun(@(x) isequal(x, obj.mat), matSave(max(1,end-4):end))))
+                if(any(cellfun(@(x) isequal(x, obj.mat), matSave(max(1,end-9):end))))
                     warning('检测到重复存储。');
                 else
                     matSave{end+1} = obj.mat;
@@ -265,13 +270,16 @@ classdef HASHI
         end
         
         function AddCNNTrainData(obj, IMG_FILE_NAME)
+            
+            addpath('./TokenExtract');
+            
             if(nargin < 2)
                 IMG_FILE_NAME = '0.png';
             end
             
-            addpath('./TokenExtract');
             % 图片处理
             [ImgSet, ImgMat] = picSlice(imread(IMG_FILE_NAME));
+            
             % 有效图片位置判断
             if(isequal(obj.mat ~= 0, ImgMat))
                 if(~exist('HASHIDataSet.mat', 'file'))
@@ -284,7 +292,7 @@ classdef HASHI
                     label = [label; nonzeros(obj.mat)];
                     save HASHIDataSet.mat images label
                 end
-                %
+                % 信息提示
                 fprintf('\t加入样本数: %d\n\t总样本数: %d\n', ...
                     size(ImgSet, 3), length(label));
                 
